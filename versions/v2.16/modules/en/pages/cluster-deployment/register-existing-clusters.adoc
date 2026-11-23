@@ -1,7 +1,7 @@
 = Registering Existing Clusters
 :description: Register existing clusters in Rancher by following the prerequisites and ensuring proper node roles and permissions are set
 :page-languages: [en, de, es, fr, ja, pt, zh]
-:revdate: 2026-11-13
+:revdate: 2026-11-23
 :page-revdate: {revdate}
 :page-community-path: how-to-guides/new-user-guides/kubernetes-clusters-in-rancher-setup/register-existing-clusters.adoc
 :page-product-path: cluster-deployment/register-existing-clusters.adoc
@@ -244,9 +244,9 @@ You can perform Day 2 operations directly from the Rancher UI on the following c
 * RKE2 and K3s clusters imported into Rancher using the *Generic* option.
 * RKE2 clusters provisioned with https://caprke2.docs.rancher.com/[CAPRKE2] and imported into Rancher by {xref-turtles}[{turtles-product-name}].
 
-The available operations are rotating encryption keys and creating, viewing, and restoring local `etcd` snapshots.
+You can rotate service certificates, rotate encryption keys, and create, view, or restore `etcd` snapshots.
 
-{rancher-product-name} coordinates these operations across the applicable server nodes. You don't need to run the corresponding RKE2 or K3s commands manually on each node.
+{rancher-product-name} coordinates these operations across the applicable nodes. You don't need to run the corresponding RKE2 or K3s commands manually on each node.
 
 [NOTE]
 ====
@@ -258,12 +258,12 @@ The available operations are rotating encryption keys and creating, viewing, and
 
 Before you perform a Day 2 operation, ensure that the following prerequisites are met:
 
-* *Rancher Version:* {rancher-product-name} v2.15 or later.
+* *Rancher Version:* Certificate rotation requires {rancher-product-name} v2.16.0 or later. The other operations require v2.15 or later.
 * *Feature Flag:* The `imported-day-2-ops` feature flag is active by default.
 * *Cluster Enablement:* Day 2 operations are enabled for the cluster. See <<_configuring_day_2_operations,Configuring Day 2 Operations>>.
 * *Cluster Health:* The cluster is in the *Active* state, its Kubernetes API is reachable, and the {xref-about-rancher-agents}#_rancher_system_agent[`rancher-system-agent`] has registered on every cluster node.
 * *Version Management:* For clusters imported using the *Generic* option, version management is enabled so Rancher can install or update the required `rancher-system-agent` support. See <<_configuring_version_management_for_rke2_and_k3s_clusters,Configuring Version Management for RKE2 and K3s Clusters>>.
-* *Installation Layout:* Clusters imported using the *Generic* option use the standard RKE2 or K3s installation layout, including the default data and configuration directories and systemd service names. Custom data directories, custom configuration paths, and IPv6-only server networking aren't supported.
+* *Installation Layout:*  For Day 2 operations on clusters imported using the *Generic* option, use the standard RKE2 or K3s configuration paths and systemd service names. IPv6-only server networking is unsupported. For certificate rotation, Rancher recognizes `data-dir` in the standard runtime configuration and the `--data-dir` command-line option. It also recognizes the `RKE2_DATA_DIR` or `K3S_DATA_DIR` environment variable for the corresponding runtime.
 * *Datastore:* For snapshot and restore operations, the cluster uses embedded `etcd`. K3s clusters that use SQLite or an external datastore aren't supported for these operations.
 * *Snapshot Storage:* Day 2 snapshot operations support only local `etcd` snapshots. Creating or restoring S3-backed snapshots isn't supported.
 * *Server Token:* For snapshot and restore operations, every applicable `etcd` server node has a non-empty `token:` value in `/etc/rancher/rke2/config.yaml`, `/etc/rancher/k3s/config.yaml`, or a YAML or JSON file under `/etc/rancher/rke2/config.yaml.d/` or `/etc/rancher/k3s/config.yaml.d/`. A token supplied only through an environment variable, command-line argument, `token-file`, `/var/lib/rancher/rke2/server/token`, or `/var/lib/rancher/k3s/server/token` doesn't meet this prerequisite.
@@ -324,6 +324,33 @@ If the annotation is absent or has another value, the cluster also inherits the 
 ====
 When you disable day 2 operations, Rancher waits for the current operation to finish before removing the support resources. When you re-enable the functionality, allow time for Rancher to reconcile those resources before starting an operation.
 ====
+
+[#_certificate_rotation]
+=== Certificate rotation
+
+Whether you rotate certificates for all supported services or select specific RKE2 or K3s services, the existing certificate authority stays in place. Rancher also keeps any Transport Layer Security (TLS) certificate and key pairs you configured for the scheduler or controller-manager.
+
+Rancher works through the affected nodes one at a time, restarting the server on server nodes and the runtime agent on worker-only nodes. It waits for each node to pass its health checks before moving on.
+
+[#_rotating_service_certificates]
+==== Rotating service certificates
+
+[IMPORTANT]
+====
+Schedule rotation during a maintenance window, especially on clusters with a single control plane node where the Kubernetes API is unavailable during the restart.
+====
+
+. Click *☰ > Cluster Management*.
+. Locate the imported cluster and click *⋮ > Rotate Certificates*.
+. Keep *All services* selected, or choose *Selected services* and select one or more services from the list.
++
+[NOTE]
+====
+The Dashboard lists options for your Kubernetes distribution, and each service you select must apply to at least one node in the cluster. For example, selecting `etcd` fails on a K3s cluster without an `etcd` node.
+====
+. Click *Rotate Certificates*.
+. Open the cluster's *Operations* tab and wait for the certificate rotation to reach *Succeeded*.
+. Verify that the cluster returns to the *Active* state.
 
 [#_encryption_key_rotation]
 === Encryption Key Rotation
